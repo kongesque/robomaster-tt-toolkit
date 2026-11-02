@@ -46,6 +46,13 @@ python3 1_gesture.py --dronecam   # use the drone camera
 
 On Windows, use `python` instead of `python3`.
 
+Examples find `.venv` by themselves, so no activate step is needed. Activate it only to run a file without `from kit import *`, such as a `references/` sample, or to use `pip install`:
+
+```bash
+source .venv/bin/activate    # Mac
+.venv\Scripts\activate       # Windows
+```
+
 ## Examples
 
 | File | What it does | Edit |
@@ -105,7 +112,7 @@ On Windows, use `python` instead of `python3`.
 | Camera won't open | Allow your terminal in Camera privacy settings |
 | Drone camera black | Allow Python through the firewall |
 | Matrix or LED dead | Reseat the module, then run `9_sdk.py` and type `EXT version?` |
-| `No module named cv2` | Run `sh setup.sh` first |
+| `No module named cv2` | Run setup first, or activate `.venv` for files without `from kit import *` |
 | `mediapipe` has no `solutions` | Wrong Python: delete `.venv`, run setup again |
 | Gestures unreliable | Keep your hand 30-80 cm away, in good light |
 
