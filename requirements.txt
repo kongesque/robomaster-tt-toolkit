@@ -1,0 +1,5 @@
+mediapipe==0.10.21
+opencv-contrib-python==4.11.0.86
+opencv-python==4.11.0.86
+djitellopy==2.5.0
+pygame==2.6.1
