@@ -12,6 +12,8 @@ cd robomaster-tt-toolkit
 sh setup.sh
 ```
 
+**Windows:** on GitHub click **Code → Download ZIP**, unzip it, then double-click `setup.bat`. It installs Python if needed.
+
 ## Run
 
 Turn on the drone and join its Wi-Fi (`RMTT-xxxx`). It has no internet.
@@ -23,7 +25,7 @@ python3 1_gesture.py --sim        # no drone needed
 python3 1_gesture.py --dronecam   # use the drone camera
 ```
 
-Windows: run `setup.bat` once, then use `python` instead of `python3`.
+On Windows, use `python` instead of `python3`.
 
 ## Examples
 
