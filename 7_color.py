@@ -6,7 +6,7 @@ Keys: t takeoff, l land, q quit.
 from kit import *
 
 # ======== CHANGE HERE ========
-CAM = "webcam"  # "webcam" or "drone"
+CAM = DEFAULT_CAM  # webcam, or run with --dronecam
 #          finder          letter  LED      rc while seen (lr, fb, ud, yaw)
 RULES = [(Color("red"),    "R",    RED,     (0, 0, 0, 0)),
          (Color("green"),  "G",    GREEN,   (0, 0, 20, 0)),

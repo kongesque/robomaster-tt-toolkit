@@ -7,8 +7,9 @@ Keys: t takeoff, l land, q quit.
 from kit import *
 
 # ======== CHANGE HERE ========
-CAM = "webcam"  # "webcam" or "drone"
-S = 30          # speed, 10-100
+CAM = DEFAULT_CAM  # webcam, or run with --dronecam
+S = 30            # speed, 10-100
+WALL = 0          # 500 = stop forward at 500 mm and show red X. 0 = off
 
 ACTIONS = {
     # gesture    (lr, fb, ud, yaw)  matrix        top LED
@@ -24,6 +25,7 @@ ACTIONS = {
     "FIST":      ((0, 0, 0, 0),     RED_X,        RED),    # stop
     # "THUMB_UP": "TAKEOFF",   # uncomment to take off / land by gesture
     # "THUMB_DOWN": "LAND",
+    # "V_LEFT": lambda d: d.t.flip_left(),   # a function runs once per gesture
 }
 # ==============================
 
@@ -31,6 +33,7 @@ with Drone() as d:  # lands automatically when this block ends
     cam = Camera(CAM, d)
     hands = Hands()
     hold = Hold()  # gesture must stay 0.25 s, stops misreads
+    last = None    # previous gesture, so a function runs once
     while True:
         frame = cam.read()
         hand = hands.read(frame)
@@ -41,14 +44,20 @@ with Drone() as d:  # lands automatically when this block ends
             d.takeoff()
         elif action == "LAND":
             d.land()
+        elif callable(action):
+            if g != last:
+                action(d)
         else:
             rc, picture, color = action
             if CAM == "drone":  # it faces you: swap so it moves to YOUR left/right
-                rc = (-rc[0], *rc[1:])
-                picture = {ARROW_LEFT: ARROW_RIGHT, ARROW_RIGHT: ARROW_LEFT}.get(picture, picture)
+                rc, picture = swap_lr(rc, picture)
+            if WALL and d.wall(WALL):  # block forward only, you can still back away
+                rc = (rc[0], min(rc[1], 0), rc[2], rc[3])
+                picture, color = RED_X, RED
             d.rc(*rc)
             d.show(picture)
             d.led(color)
 
+        last = g
         if screen(frame, d, g or "no gesture") == "q":  # show video, read keys
             break

@@ -3,7 +3,7 @@
 cd "$(dirname "$0")" || exit 1
 for py in python3.12 python3.11 python3.10; do
     if command -v "$py" >/dev/null; then
-        "$py" -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/python -c "import cv2, mediapipe, djitellopy, pygame" && echo "READY. Now run: source .venv/bin/activate"
+        "$py" -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/python -c "import cv2, mediapipe, djitellopy, pygame" && echo "READY. Now run: python3 0_check.py --sim"
         exit $?
     fi
 done

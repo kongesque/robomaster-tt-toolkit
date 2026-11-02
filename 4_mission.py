@@ -15,6 +15,7 @@ STEPS = [
     ("forward", SIDE), ("cw", 90),
     # also: ("back", 50) ("left", 50) ("right", 50) ("down", 30) ("ccw", 90)
     #       ("flip", "f")  f/b/l/r    ("wait", 2)
+    #       ("go", (50, 30, 20))  x forward, y left, z up in cm, one straight line
 ]
 # ==============================
 
@@ -37,6 +38,8 @@ with Drone() as d:  # lands automatically at the end
             d.t.flip(value)
         elif action == "wait":
             time.sleep(value)
+        elif action == "go":
+            d.t.go_xyz_speed(*value, 30)
         else:
             d.t.move(action, value)
     d.show(SMILE)

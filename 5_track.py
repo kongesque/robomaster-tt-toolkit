@@ -8,7 +8,7 @@ Keys: t takeoff, l land, q quit.
 from kit import *
 
 # ======== CHANGE HERE ========
-finder = Faces()          # Faces()  or  Hands()  or  Color("red")
+finder = Faces()          # Faces()  Hands()  Body()  Markers()  or  Color("red")
 TAKEOFF_UP = 50           # cm climb after takeoff so the camera sees you (0 = none)
 FOLLOW_DISTANCE = True    # False = only turn and climb, no forward/back
 # ==============================

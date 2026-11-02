@@ -6,7 +6,7 @@ Keys: t takeoff, l land, q quit.
 from kit import *
 
 # ======== CHANGE HERE ========
-CAM = "webcam"  # "webcam" or "drone"
+CAM = DEFAULT_CAM  # webcam, or run with --dronecam
 
 
 def on_count(d, n):

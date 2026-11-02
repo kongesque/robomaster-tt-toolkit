@@ -1,15 +1,26 @@
-"""kit.py - all shared code. Every task script starts with: from kit import *
-Add --sim to any script to practise with no drone (uses your webcam, prints commands).
+"""kit.py - all shared code. Every example starts with: from kit import *
+Flags for any example: --sim (no drone, uses webcam), --dronecam (use the drone camera).
 """
 import math
+import os
+import subprocess
 import sys
 import threading
 import time
+
+# Plain "python3 file.py" works: switch to this project's .venv if it isn't active.
+_venv = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".venv")
+_python = os.path.join(_venv, "Scripts", "python.exe") if os.name == "nt" else os.path.join(_venv, "bin", "python")
+if os.path.exists(_python) and os.path.isfile(sys.argv[0]) and os.path.realpath(sys.prefix) != os.path.realpath(_venv):
+    if os.name == "nt":
+        sys.exit(subprocess.call([_python] + sys.argv))
+    os.execv(_python, [_python] + sys.argv)
 
 import cv2
 import numpy as np
 
 SIM = "--sim" in sys.argv
+DEFAULT_CAM = "drone" if "--dronecam" in sys.argv else "webcam"
 
 # ---- Settings you may need to change ---------------------------------------
 SWAP_LR_ARROWS = False  # True if left/right arrows look backwards on the drone
@@ -31,6 +42,12 @@ def pic(text):
 def recolor(pattern, color):
     """recolor(ARROW_UP, "r") -> same picture in red."""
     return "".join("0" if c == "0" else color for c in pattern)
+
+
+def bar(n, color="b"):
+    """Level display: n rows lit from the bottom, 0-8."""
+    n = max(0, min(8, int(n)))
+    return "0" * 8 * (8 - n) + color * 8 * n
 
 
 ARROW_UP = pic("""
@@ -121,7 +138,8 @@ class FakeTello:
 
     def __getattr__(self, name):
         def call(*args, **kwargs):
-            print(f"[SIM] {name}{args}", flush=True)
+            if not name.startswith("get_"):
+                print(f"[SIM] {name}{args}", flush=True)
             if name == "move_forward":
                 self.wall -= args[0] * 10
             elif name.startswith("rotate"):
@@ -197,6 +215,9 @@ class Drone:
 
     def battery(self):
         return self._t.get_battery()
+
+    def height(self):
+        return self._t.get_height()
 
     def takeoff(self):
         if self.flying:
@@ -383,35 +404,89 @@ class Hands:
                                          min_tracking_confidence=confidence)
 
     def read(self, frame):
+        hands = self.read_all(frame)
+        return hands[0] if len(hands) == 1 else None
+
+    def read_all(self, frame):
+        """Every visible hand (up to 2), sorted left to right on screen."""
         h, w = frame.shape[:2]
         result = self.model.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-        found = result.multi_hand_landmarks or []
-        for one in found:
+        hands = []
+        for one, info in zip(result.multi_hand_landmarks or [], result.multi_handedness or []):
             self.mp.drawing_utils.draw_landmarks(frame, one, self.mp.hands.HAND_CONNECTIONS)
-        if len(found) != 1:
+            p = [(q.x * w, q.y * h) for q in one.landmark]
+            hand = Target(p[9][0], p[9][1], math.dist(p[0], p[9]))
+            hand.points = p
+            hand.gesture, hand.fingers = classify(p)
+            hand.side = info.classification[0].label
+            hands.append(hand)
+        return sorted(hands, key=lambda q: q.cx)
+
+
+def classify_body(p):
+    """33 body points in pixels -> pose name. LEFT/RIGHT mean sides of the screen.
+    BOTH_UP BOTH_OUT LEFT_UP RIGHT_UP LEFT_OUT RIGHT_OUT DOWN OTHER"""
+    width = max(math.dist(p[11], p[12]), 1)
+
+    def arm(shoulder, wrist):
+        dx, dy = abs(wrist[0] - shoulder[0]), wrist[1] - shoulder[1]
+        if dy < -0.4 * width:
+            return "UP"
+        if dx > 0.8 * width and abs(dy) < 0.6 * width:
+            return "OUT"
+        return "DOWN"
+
+    left, right = (arm(*a) for a in sorted([(p[11], p[15]), (p[12], p[16])], key=lambda a: a[0][0]))
+    if left == right:
+        return "DOWN" if left == "DOWN" else "BOTH_" + left
+    if right == "DOWN":
+        return "LEFT_" + left
+    return "RIGHT_" + right if left == "DOWN" else "OTHER"
+
+
+class Body:
+    """body = Body().read(frame) -> None if no person. body.pose, body.points, .cx .cy .size
+    Keep your shoulders and arms in view."""
+
+    def __init__(self, confidence=0.6):
+        import mediapipe as mp
+        self.mp = mp.solutions
+        self.model = self.mp.pose.Pose(model_complexity=1, min_detection_confidence=confidence,
+                                       min_tracking_confidence=confidence)
+
+    def read(self, frame):
+        h, w = frame.shape[:2]
+        found = self.model.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)).pose_landmarks
+        if not found:
             return None
-        p = [(q.x * w, q.y * h) for q in found[0].landmark]
-        hand = Target(p[9][0], p[9][1], math.dist(p[0], p[9]))
-        hand.points = p
-        hand.gesture, hand.fingers = classify(p)
-        hand.side = result.multi_handedness[0].classification[0].label
-        return hand
+        self.mp.drawing_utils.draw_landmarks(frame, found, self.mp.pose.POSE_CONNECTIONS)
+        if min(found.landmark[11].visibility, found.landmark[12].visibility) < 0.5:
+            return None
+        p = [(q.x * w, q.y * h) for q in found.landmark]
+        body = Target((p[11][0] + p[12][0]) / 2, (p[11][1] + p[12][1]) / 2, math.dist(p[11], p[12]))
+        body.points = p
+        body.pose = classify_body(p)
+        return body
 
 
 class Faces:
-    """face = Faces().read(frame) -> the biggest face, or None."""
+    """face = Faces().read(frame) -> the biggest face, or None.
+    Faces().read_all(frame) -> every face, biggest first. len() counts people."""
 
     def __init__(self):
         self.model = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
 
     def read(self, frame):
-        faces = self.model.detectMultiScale(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), 1.1, 5,
-                                            minSize=(60, 60))
-        if len(faces) == 0:
-            return None
-        x, y, w, h = max(faces, key=lambda r: r[2] * r[3])
-        cv2.rectangle(frame, (int(x), int(y)), (int(x + w), int(y + h)), (0, 255, 0), 2)
-        return Target(x + w / 2, y + h / 2, w)
+        faces = self.read_all(frame)
+        return faces[0] if faces else None
+
+    def read_all(self, frame):
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        faces = []
+        for x, y, w, h in self.model.detectMultiScale(gray, 1.1, 5, minSize=(60, 60)):
+            cv2.rectangle(frame, (int(x), int(y)), (int(x + w), int(y + h)), (0, 255, 0), 2)
+            faces.append(Target(x + w / 2, y + h / 2, w))
+        return sorted(faces, key=lambda q: -q.size)
 
 
 class Color:
@@ -443,7 +518,37 @@ class Color:
         return Target(x + w / 2, y + h / 2, w)
 
 
+class Markers:
+    """m = Markers().read(frame) -> an ArUco marker or QR code, or None.
+    m.value is text: "7" for ArUco id 7, or the words in the QR code."""
+
+    def __init__(self):
+        words = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+        self.aruco = cv2.aruco.ArucoDetector(words)
+        self.qr = cv2.QRCodeDetector()
+
+    def read(self, frame):
+        corners, ids, _ = self.aruco.detectMarkers(frame)
+        if ids is not None:
+            cv2.aruco.drawDetectedMarkers(frame, corners, ids)
+            box, value = corners[0][0], str(ids[0][0])
+        else:
+            value, box, _ = self.qr.detectAndDecode(frame)
+            if not value or box is None:
+                return None
+            box = box[0]
+        found = Target(box[:, 0].mean(), box[:, 1].mean(), box[:, 0].max() - box[:, 0].min())
+        found.value = value
+        return found
+
+
 # ---- Small helpers --------------------------------------------------------------
+def swap_lr(rc, picture):
+    """Drone camera: it faces you, so its left is your right. Swaps both to YOUR side."""
+    swapped = {ARROW_LEFT: ARROW_RIGHT, ARROW_RIGHT: ARROW_LEFT}
+    return (-rc[0], *rc[1:]), swapped.get(picture, picture)
+
+
 class Hold:
     """g = hold(value): movement only counts after it stays the same for `seconds`.
     Stops a one-frame misread from moving the drone. PALM/FIST/None act at once."""
@@ -506,7 +611,7 @@ def screen(frame, d, text="", title="UAV"):
     """Show the frame with status and a preview of the matrix + top LED. Returns the key.
     Built in: t = takeoff, l = land. Returns "q" for q, Esc, or closing the window."""
     state = "FLYING" if d.flying else "GROUND"
-    cv2.putText(frame, f"{'SIM ' if SIM else ''}{state} BAT {d.battery()}%  t=takeoff l=land q=quit",
+    cv2.putText(frame, f"{'SIM ' if SIM else ''}{state} BAT {d.battery()}% H {d.height()}cm  t=takeoff l=land q=quit",
                 (10, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
     if text:
         cv2.putText(frame, str(text), (10, 62), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
