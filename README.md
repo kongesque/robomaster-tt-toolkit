@@ -14,6 +14,25 @@ sh setup.sh
 
 **Windows:** on GitHub click **Code → Download ZIP**, unzip it, then double-click `setup.bat`. It installs Python if needed.
 
+If `setup.bat` fails, install by hand. Run these in PowerShell:
+
+```powershell
+winget install -e --id Python.Python.3.12 --architecture x64
+winget install -e --id Microsoft.VCRedist.2015+.x64
+```
+
+Close PowerShell and open it again in the project folder, then run:
+
+```powershell
+if (Test-Path .venv) { Remove-Item -Recurse -Force .venv }
+py -3.12 -m venv .venv
+.venv\Scripts\python -m ensurepip --upgrade
+.venv\Scripts\python -m pip install -r requirements.txt
+python 0_check.py --sim
+```
+
+It's working if you see `Check done.`
+
 ## Run
 
 Turn on the drone and join its Wi-Fi (`RMTT-xxxx`). It has no internet.
