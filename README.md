@@ -48,9 +48,17 @@ On Windows, use `python` instead of `python3`.
 
 Examples find `.venv` by themselves, so no activate step is needed. Activate it only to run a file without `from kit import *`, such as a `references/` sample, or to use `pip install`:
 
+Mac:
+
 ```bash
-source .venv/bin/activate    # Mac
-.venv\Scripts\activate       # Windows
+source .venv/bin/activate
+```
+
+Windows PowerShell. The first line allows scripts in this terminal only:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+.venv\Scripts\activate
 ```
 
 ## Examples
